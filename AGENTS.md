@@ -22,6 +22,7 @@ npm run dev
 npm run lint
 npm run build
 npm run db:generate
+npm run db:migrate
 npm run db:push
 npm run db:seed
 npm run db:studio
@@ -36,9 +37,9 @@ Run `npm run lint` and `npm run build` before handing off code changes when prac
 - `src/app/actions.ts` contains Server Actions for bookings, identity, PIN unlock, and uploads.
 - `src/components/Calendar.tsx` owns the interactive calendar UI.
 - `src/components/IdentityPicker.tsx`, `IdentityOnboarding.tsx`, and `PinGate.tsx` handle lightweight family identity and access.
-- `src/db/schema.ts`, `src/db/queries.ts`, and `src/db/client.ts` are the Drizzle/Neon data layer.
+- `src/db/schema.ts`, `src/db/queries.ts`, and `src/db/client.ts` are the Drizzle/MySQL data layer.
 - `src/lib/data.ts` is demo and seed data.
-- `src/lib/data-source.ts` switches between demo data and Neon based on `DATABASE_URL`.
+- `src/lib/data-source.ts` switches between demo data and MySQL based on `DATABASE_URL`.
 - `src/lib/site.ts` centralizes reusable branding, metadata, footer text, and cookie prefix defaults.
 
 ## Product Constraints
@@ -61,11 +62,11 @@ Run `npm run lint` and `npm run build` before handing off code changes when prac
 ## Database Notes
 
 - Schema changes live in `src/db/schema.ts`.
-- Use `npm run db:generate` for migrations when changing schema shape.
-- Use `npm run db:push` for quick local/prototype database sync.
+- Use `npm run db:generate` and commit the migration when changing schema shape.
+- Use `npm run db:migrate` for persistent databases; `db:push` is for disposable local prototypes.
 - `npm run db:seed` truncates and reseeds people/bookings from `src/lib/data.ts`.
+- Production startup applies committed migrations before serving requests.
 
 ## Custom Slash Commands
 
-- `/setup`: This slash command runs the interactive repository configuration wizard (`npm run setup`). When invoked, you (the AI agent) should guide the user step-by-step through logging in to Vercel, connecting their Neon Postgres database and Vercel Blob integrations, pulling env files down, interactively configuring site copy and family PINs in `.env.local`, and executing the initial database sync and seeding.
-
+- `/setup`: Run the interactive repository configuration wizard (`npm run setup`). Guide the user through an ignored `.env.local`, optional MySQL configuration, committed migrations, and optional demonstration seeding. Cloud hosting and Blob storage are independent optional branches.

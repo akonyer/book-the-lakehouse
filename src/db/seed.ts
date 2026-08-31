@@ -1,7 +1,6 @@
 import { config } from "dotenv";
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
-import { sql } from "drizzle-orm";
+import { createPool } from "mysql2/promise";
+import { drizzle } from "drizzle-orm/mysql2";
 import * as schema from "./schema";
 import { PEOPLE, BOOKINGS } from "../lib/data";
 
@@ -9,18 +8,19 @@ config({ path: ".env.local" });
 
 const url = process.env.DATABASE_URL;
 if (!url) {
-  throw new Error("DATABASE_URL is not set. Run `vercel env pull .env.local` first.");
+  throw new Error("DATABASE_URL is not set");
 }
 
-const conn = neon(url);
-const db = drizzle(conn, { schema });
+const pool = createPool(url);
+const db = drizzle(pool, { schema, mode: "default" });
 
 async function main() {
   console.log("🌱 Seeding…");
 
-  // Clear existing rows in dependency order
-  await db.execute(sql`TRUNCATE TABLE ${schema.bookings} RESTART IDENTITY CASCADE`);
-  await db.execute(sql`TRUNCATE TABLE ${schema.people} RESTART IDENTITY CASCADE`);
+  // Clear existing rows in dependency order.
+  await db.delete(schema.photos);
+  await db.delete(schema.bookings);
+  await db.delete(schema.people);
 
   await db.insert(schema.people).values(
     PEOPLE.map((p) => ({
@@ -45,7 +45,9 @@ async function main() {
 }
 
 main()
-  .then(() => process.exit(0))
+  .then(async () => {
+    await pool.end();
+  })
   .catch((e) => {
     console.error(e);
     process.exit(1);

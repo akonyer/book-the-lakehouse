@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import { siteDescription, siteName } from "@/lib/site";
 import "./globals.css";
 
@@ -48,10 +47,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
       </head>
-      <body className="min-h-full flex flex-col">
-        {children}
-        <Analytics />
-      </body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }

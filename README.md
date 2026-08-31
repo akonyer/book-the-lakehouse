@@ -6,13 +6,43 @@
 
 ### A tiny, beautiful, and free to host booking calendar for the family holiday home.
 
-[MIT licensed](./LICENSE) · built with Next.js, React, Drizzle, Neon, and Vercel Blob
+[MIT licensed](./LICENSE) · built with Next.js, React, Drizzle, MySQL, and optional Vercel Blob
 
 </div>
 
 <br>
 
 A small app for sharing the family holiday home without turning the family chat into a booking tribunal: a private calendar with a shared PIN, optional stay costs, bank transfer details, photos from the trip, and just enough ceremony to keep everyone honest.
+
+Fork maintenance and upstream-sync guidance is documented in
+[UPSTREAM.md](UPSTREAM.md).
+
+## Portable container deployment
+
+The application still runs without a database in demonstration mode. For
+persistent deployments, configure a standard MySQL 8 `DATABASE_URL`; startup
+applies the committed Drizzle migrations before serving traffic.
+
+```bash
+docker build -t book-the-lakehouse .
+docker run --rm -p 3000:3000 \
+  -e DATABASE_URL='mysql://user:password@database:3306/calendar' \
+  -e FAMILY_PIN='<shared-pin>' \
+  book-the-lakehouse
+```
+
+`PEOPLE_FILE` may point to a mounted JSON file shaped like
+`people.example.json`. Do not bake names, access codes, payment details or
+other private deployment data into the image.
+
+Set `TRUST_AUTHENTICATING_PROXY=true` only when the application has no direct
+network path and every request passes through an authenticating reverse proxy.
+That mode removes the application's shared PIN prompt in favor of upstream SSO.
+
+The GitHub workflow validates migrations against MySQL 8.4 LTS and publishes
+amd64/arm64 images to GHCR after changes reach `master`. Images use immutable
+`sha-<full-commit>` tags; deployment repositories should additionally pin the
+reported manifest digest.
 
 ## What It Does
 
@@ -24,7 +54,7 @@ people take turns using.
 - Optional nightly costs, bank details, and a transfer prompt at booking time.
 - **Mary mode** — a quiet admin area where trusted users can tick off paid stays.
 - Profile and stay photos when Vercel Blob is configured.
-- Runs locally with demo data before you connect Neon.
+- Runs locally with demo data before you connect MySQL.
 - Rename the place, people, footer, PIN, colors, and cookie prefix to suit your own family.
 - Agent-friendly: hand the codebase to an AI assistant, or run `/setup` (or `npm run setup`) to wire up database, storage, and family settings in one go.
 
@@ -45,10 +75,10 @@ the interactive wizard:
 npm run setup
 ```
 
-It checks the Vercel CLI, walks you through linking the Neon Postgres and Vercel
-Blob integrations, pulls the connection strings down for you, prompts for your
-family-specific settings (PIN, site title, nightly costs, bank details, admins),
-and runs the initial schema push and seed.
+It creates `.env.local`, prompts for reusable site settings, and can apply the
+committed migrations and optional demonstration seed when a MySQL URL is
+configured. Add secrets and private deployment data directly to the ignored
+file rather than entering them into source control.
 
 Once it finishes, you're good to go.
 
@@ -59,14 +89,13 @@ Once it finishes, you're good to go.
 If you prefer to configure the application manually:
 
 1. Fork and clone this repo.
-2. Create a [Vercel](https://vercel.com/pricing) project from your fork. The Hobby plan is a good starting point for personal use.
-3. Add the [Neon integration for Vercel](https://vercel.com/marketplace/neon). It creates the Postgres database and wires the database environment variables for you. Neon's Free plan is fine for getting started.
-4. Add the [Vercel Blob integration](https://vercel.com/docs/storage/vercel-blob) if you want profile photos and stay photos. Vercel handles the Blob environment variable too.
-5. Add your app-specific settings from `.env.example`, especially `FAMILY_PIN` and the `NEXT_PUBLIC_*` display text.
-6. Run `npm run db:push` once, then `npm run db:seed` to add starter people and sample bookings.
+2. Copy `.env.example` to `.env.local` and set your application values.
+3. Provision a MySQL 8 database and set `DATABASE_URL` if you need persistence.
+4. Run `npm run db:migrate`, then optionally `npm run db:seed` for demonstration data.
+5. Add the [Vercel Blob integration](https://vercel.com/docs/storage/vercel-blob) only if you want profile and stay photos.
+6. Run the standalone container on any OCI-compatible host, or deploy through your preferred Node.js platform.
 
-That is the whole shape of it: Vercel runs the app, Neon keeps the calendar, and
-Blob stores the nice little photos.
+The runtime has no dependency on a specific cloud or orchestration platform.
 
 ## Local Development
 
@@ -87,31 +116,29 @@ With only `.env.example` copied, the app can render with demo data. Add
 
 ## Environment Variables
 
-Create `.env.local` in the project root:
-
-Most of the database, Blob storage, and Vercel-specific values can be created
-for you by the Vercel Neon and Vercel Blob integrations. Once they exist in
-Vercel, pull them down locally with:
+Create the ignored `.env.local` in the project root:
 
 ```bash
-vercel env pull .env.local
+cp .env.example .env.local
 ```
 
 Then add the app-specific bits, like `FAMILY_PIN`, display text, Marys, and any
 optional stay-cost details.
 
 ```bash
-FAMILY_PIN=1234
-DATABASE_URL=postgres://...
-BLOB_READ_WRITE_TOKEN=vercel_blob_rw_...
+FAMILY_PIN=<shared-pin>
+TRUST_AUTHENTICATING_PROXY=false
+DATABASE_URL=mysql://<user>:<password>@<host>:3306/<database>
+PEOPLE_FILE=/run/config/people.json
+BLOB_READ_WRITE_TOKEN=<optional-blob-token>
 
-BOOKING_COST_PER_NIGHT=50
-BOOKING_COST_CURRENCY=NZD
-PAYMENT_ACCOUNT_NAME="Lakehouse Account"
-PAYMENT_ACCOUNT_NUMBER="12-3456-7890123-00"
-PAYMENT_REFERENCE="Lakehouse stay"
-PAYMENT_NOTE="Please transfer after booking."
-MARY_IDS=mary
+BOOKING_COST_PER_NIGHT=
+BOOKING_COST_CURRENCY=
+PAYMENT_ACCOUNT_NAME=
+PAYMENT_ACCOUNT_NUMBER=
+PAYMENT_REFERENCE=
+PAYMENT_NOTE=
+MARY_IDS=<comma-separated-person-ids>
 
 NEXT_PUBLIC_HOME_NAME="Book the lakehouse"
 NEXT_PUBLIC_SITE_DESCRIPTION="A private family booking calendar for the lakehouse."
@@ -128,19 +155,21 @@ who can open `/mary` and check off paid stays.
 
 ## Database Setup
 
-This project uses Drizzle with Neon Postgres.
+This project uses Drizzle with MySQL 8. Schema history is committed under
+`drizzle/`; production startup runs the same migrations before the server.
 
 ```bash
 npm run db:generate
-npm run db:push
+npm run db:migrate
 npm run db:seed
 ```
 
 `src/lib/data.ts` contains the starter people and bookings used by both demo
 mode and `npm run db:seed`. Swap them out for your own family, then seed again.
 
-Run `npm run db:push` after pulling changes that add Mary mode, because bookings
-include a persisted `payment_settled` checklist field.
+`db:push` remains available for disposable local prototyping. Use
+`db:migrate` for every persistent environment so changes are versioned and
+repeatable.
 
 Useful database commands:
 
@@ -167,7 +196,8 @@ npm run build        # Build for production
 npm run start        # Run the production build
 npm run lint         # Run ESLint
 npm run db:generate  # Generate Drizzle migrations
-npm run db:push      # Push schema changes to DATABASE_URL
+npm run db:migrate   # Apply committed migrations to DATABASE_URL
+npm run db:push      # Prototype schema changes against a disposable database
 npm run db:seed      # Seed people and bookings from src/lib/data.ts
 ```
 
@@ -177,8 +207,8 @@ npm run db:seed      # Seed people and bookings from src/lib/data.ts
 | --- | --- |
 | Next.js 16 | App Router, Server Components, Server Actions, and metadata. |
 | React 19 | Client interactions for picking, dragging, uploading, and editing. |
-| Drizzle | Typed schema and query helpers for Postgres. |
-| Neon | Serverless Postgres that deploys cleanly on Vercel. |
+| Drizzle | Typed schema, migrations, and query helpers for MySQL. |
+| MySQL 8 | Portable persistent storage supported by common deployment platforms. |
 | Vercel Blob | Simple public image storage for profile and stay photos. |
 | Tailwind CSS 4 | Quiet, responsive styling with a small custom palette. |
 

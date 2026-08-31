@@ -1,8 +1,8 @@
-import { neon } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-http";
+import { createPool } from "mysql2/promise";
+import { drizzle, type MySql2Database } from "drizzle-orm/mysql2";
 import * as schema from "./schema";
 
-type Db = ReturnType<typeof drizzle<typeof schema>>;
+type Db = MySql2Database<typeof schema>;
 
 let cachedDb: Db | null = null;
 
@@ -14,13 +14,13 @@ export function getDb(): Db {
   const url = process.env.DATABASE_URL?.trim();
   if (!url) {
     throw new Error(
-      "DATABASE_URL is not set. Connect a Neon database via the Vercel dashboard (Storage -> Create Database -> Neon), then pull env vars with `vercel env pull .env.local`.",
+      "DATABASE_URL is not set. Configure a MySQL connection before starting the application.",
     );
   }
 
   if (!cachedDb) {
-    const sql = neon(url);
-    cachedDb = drizzle(sql, { schema });
+    const pool = createPool(url);
+    cachedDb = drizzle(pool, { schema, mode: "default" });
   }
 
   return cachedDb;

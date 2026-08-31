@@ -62,9 +62,7 @@ describe("ThemeToggle motion contract", () => {
 
   it("keeps individual transform properties in the icon transition", () => {
     const css = readFileSync("src/app/globals.css", "utf8");
-    const iconTransition = css.match(
-      /\.theme-toggle-icon\s*{(?<body>[\s\S]*?)}/,
-    )?.groups?.body;
+    const iconTransition = css.match(/\.theme-toggle-icon\s*{([\s\S]*?)}/)?.[1];
 
     expect(iconTransition).toContain("translate 620ms");
     expect(iconTransition).toContain("rotate 620ms");

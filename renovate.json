@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "dependencyDashboard": true,
+  "dependencyDashboardTitle": "Dependency update dashboard",
+  "rangeStrategy": "pin",
+  "automerge": false,
+  "minimumReleaseAge": "5 days",
+  "internalChecksFilter": "strict",
+  "separateMajorMinor": true,
+  "separateMinorPatch": true,
+  "packageRules": [
+    {
+      "description": "Major changes require an explicit dependency-dashboard decision.",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true,
+      "labels": ["dependencies", "major-update"]
+    },
+    {
+      "description": "Routine updates are reviewable and never merge automatically.",
+      "matchUpdateTypes": ["digest", "patch", "minor", "pin", "pinDigest"],
+      "dependencyDashboardApproval": false,
+      "automerge": false
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "minimumReleaseAge": null,
+    "dependencyDashboardApproval": false,
+    "automerge": false,
+    "labels": ["dependencies", "security", "expedited"]
+  }
+}
