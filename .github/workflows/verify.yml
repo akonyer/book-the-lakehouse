@@ -32,6 +32,7 @@ jobs:
           --health-retries=20
     env:
       TEST_DATABASE_URL: mysql://root:test-root-password@127.0.0.1:3306/book_the_lakehouse_test
+      RUNTIME_DATABASE_URL: mysql://book_the_lakehouse:test-application-password@127.0.0.1:3306/book_the_lakehouse_test
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
 
@@ -53,9 +54,12 @@ jobs:
           set -euo pipefail
           docker exec "${MYSQL_CONTAINER}" mysql \
             --user=root --password=test-root-password \
-            --execute='CREATE DATABASE book_the_lakehouse_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+            --execute="CREATE DATABASE book_the_lakehouse_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+              CREATE USER IF NOT EXISTS 'book_the_lakehouse'@'%' IDENTIFIED BY 'test-application-password';
+              GRANT ALL PRIVILEGES ON book_the_lakehouse_test.* TO 'book_the_lakehouse'@'%';
+              SET GLOBAL log_bin_trust_function_creators = 1;"
           container="$(docker run --detach --network host \
-            --env DATABASE_URL="${TEST_DATABASE_URL}" \
+            --env DATABASE_URL="${RUNTIME_DATABASE_URL}" \
             --env FAMILY_PIN=test-pin \
             --env TRUST_AUTHENTICATING_PROXY=true \
             book-the-lakehouse:verify)"
