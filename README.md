@@ -147,6 +147,11 @@ NEXT_PUBLIC_REPO_URL="https://github.com/shrimbly/book-the-lakehouse"
 COOKIE_PREFIX=book-the-lakehouse
 ```
 
+The database login needs privileges only on its own database. Migrations create
+the booking overlap triggers, so a MySQL server with binary logging enabled must
+also set `log_bin_trust_function_creators=1`; do not grant the application a
+global administrative role to work around that server setting.
+
 Only `FAMILY_PIN` is needed for the PIN gate. `DATABASE_URL` enables the real
 database-backed calendar. `BLOB_READ_WRITE_TOKEN` enables photos.
 `BOOKING_COST_PER_NIGHT` turns on the cost and bank-transfer prompt.

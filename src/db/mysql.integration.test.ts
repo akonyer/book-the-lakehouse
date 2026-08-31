@@ -31,6 +31,10 @@ interface CountRow extends RowDataPacket {
   count: number;
 }
 
+interface CurrentUserRow extends RowDataPacket {
+  currentUser: string;
+}
+
 integration("MySQL migrations", () => {
   // Vitest executes skipped suite callbacks during collection. Keep discovery
   // side-effect free when no integration database has been configured.
@@ -42,27 +46,40 @@ integration("MySQL migrations", () => {
   }
   const serverUrl = new URL(databaseUrl);
   serverUrl.pathname = "/";
+  const applicationUser = "book_the_lakehouse_test_app";
+  const applicationPassword = "test-application-password";
+  const applicationUrl = new URL(databaseUrl);
+  applicationUrl.username = applicationUser;
+  applicationUrl.password = applicationPassword;
   let connection: Connection;
 
   beforeAll(async () => {
     const admin = await createConnection(serverUrl.toString());
     try {
       await admin.query(`DROP DATABASE IF EXISTS \`${databaseName}\``);
+      await admin.query(`DROP USER IF EXISTS '${applicationUser}'@'%'`);
       await admin.query(
         `CREATE DATABASE \`${databaseName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`,
       );
+      await admin.query(
+        `CREATE USER '${applicationUser}'@'%' IDENTIFIED BY '${applicationPassword}'`,
+      );
+      await admin.query(
+        `GRANT ALL PRIVILEGES ON \`${databaseName}\`.* TO '${applicationUser}'@'%'`,
+      );
+      await admin.query("SET GLOBAL log_bin_trust_function_creators = 1");
     } finally {
       await admin.end();
     }
 
     const migration = spawnSync(process.execPath, ["migrate.mjs"], {
       cwd: process.cwd(),
-      env: { ...process.env, DATABASE_URL: databaseUrl, PEOPLE_FILE: "" },
+      env: { ...process.env, DATABASE_URL: applicationUrl.toString(), PEOPLE_FILE: "" },
       encoding: "utf8",
     });
     expect(migration.status, migration.stderr || migration.stdout).toBe(0);
 
-    connection = await createConnection(databaseUrl);
+    connection = await createConnection(applicationUrl.toString());
     await connection.execute(
       "INSERT INTO people (id, first_name, color) VALUES (?, ?, ?), (?, ?, ?)",
       ["person-one", "First person", "#3a4e48", "person-two", "Second person", "#8b6f47"],
@@ -78,12 +95,18 @@ integration("MySQL migrations", () => {
     const admin = await createConnection(serverUrl.toString());
     try {
       await admin.query(`DROP DATABASE IF EXISTS \`${databaseName}\``);
+      await admin.query(`DROP USER IF EXISTS '${applicationUser}'@'%'`);
     } finally {
       await admin.end();
     }
   });
 
   it("creates the complete schema with foreign-key and date-range constraints", async () => {
+    const [currentUsers] = await connection.query<CurrentUserRow[]>(
+      "SELECT CURRENT_USER() AS currentUser",
+    );
+    expect(currentUsers[0].currentUser).toBe(`${applicationUser}@%`);
+
     const [tables] = await connection.query<TableRow[]>("SHOW TABLES");
     const names = tables.map((row) => Object.values(row)[0]);
     expect(names).toEqual(
@@ -124,7 +147,11 @@ integration("MySQL migrations", () => {
       );
       const migration = spawnSync(process.execPath, ["migrate.mjs"], {
         cwd: process.cwd(),
-        env: { ...process.env, DATABASE_URL: databaseUrl, PEOPLE_FILE: peopleFile },
+        env: {
+          ...process.env,
+          DATABASE_URL: applicationUrl.toString(),
+          PEOPLE_FILE: peopleFile,
+        },
         encoding: "utf8",
       });
       expect(migration.status, migration.stderr || migration.stdout).toBe(0);
@@ -207,7 +234,7 @@ integration("MySQL migrations", () => {
   });
 
   it("serializes simultaneous overlapping booking writes", async () => {
-    const secondConnection = await createConnection(databaseUrl);
+    const secondConnection = await createConnection(applicationUrl.toString());
     try {
       const attempts = await Promise.allSettled([
         connection.execute(
