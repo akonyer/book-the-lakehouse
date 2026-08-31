@@ -3,16 +3,15 @@ import { defineConfig } from "drizzle-kit";
 
 config({ path: ".env.local" });
 
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set in .env.local");
-}
-
 export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
-  dialect: "postgresql",
+  dialect: "mysql",
   dbCredentials: {
-    url: process.env.DATABASE_URL,
+    // Generation is offline, while push/studio use the real configured URL.
+    url:
+      process.env.DATABASE_URL ??
+      "mysql://book-the-lakehouse:development@127.0.0.1:3306/book_the_lakehouse",
   },
   strict: true,
   verbose: true,

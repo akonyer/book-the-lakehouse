@@ -29,9 +29,12 @@ function isDbConstraintError(error: unknown, names: string[]): boolean {
   const constraint = "constraint" in error ? String(error.constraint) : "";
   const message = error instanceof Error ? error.message : String(error);
   return (
-    code === "23P01" ||
-    code === "23514" ||
-    code === "23505" ||
+    code === "ER_SIGNAL_EXCEPTION" ||
+    code === "ER_CHECK_CONSTRAINT_VIOLATED" ||
+    code === "ER_DUP_ENTRY" ||
+    code === "1644" ||
+    code === "3819" ||
+    code === "1062" ||
     names.some((name) => constraint === name || message.includes(name))
   );
 }
@@ -249,7 +252,7 @@ export async function createPerson(input: {
       revalidatePath("/");
       return { id };
     } catch (error) {
-      if (!isDbConstraintError(error, ["people_pkey"])) throw error;
+      if (!isDbConstraintError(error, ["people_id"])) throw error;
       knownIds = [...knownIds, id];
     }
   }

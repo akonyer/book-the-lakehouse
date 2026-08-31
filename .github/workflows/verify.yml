@@ -1,0 +1,119 @@
+name: Verify and publish
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      mysql:
+        image: mysql:8.4.11@sha256:b3b90af2a6552ae30c266fdb7d5dd55f3afb72404bb78d37fe8a23eb857fd3fb
+        env:
+          MYSQL_ROOT_PASSWORD: test-root-password
+          MYSQL_DATABASE: book_the_lakehouse_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -ptest-root-password --silent"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      TEST_DATABASE_URL: mysql://root:test-root-password@127.0.0.1:3306/book_the_lakehouse_test
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24.18.0
+          cache: npm
+
+      - run: npm ci
+      - run: npm audit --omit=dev
+      - run: npm test -- --run
+      - run: npm run lint
+      - run: npm run build
+      - run: docker build --tag book-the-lakehouse:verify .
+      - name: Verify production startup and health
+        env:
+          MYSQL_CONTAINER: ${{ job.services.mysql.id }}
+        run: |
+          set -euo pipefail
+          docker exec "${MYSQL_CONTAINER}" mysql \
+            --user=root --password=test-root-password \
+            --execute='CREATE DATABASE book_the_lakehouse_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
+          container="$(docker run --detach --network host \
+            --env DATABASE_URL="${TEST_DATABASE_URL}" \
+            --env FAMILY_PIN=test-pin \
+            --env TRUST_AUTHENTICATING_PROXY=true \
+            book-the-lakehouse:verify)"
+          trap 'docker rm --force "${container}" >/dev/null 2>&1 || true' EXIT
+
+          test "$(docker inspect --format '{{.Config.User}}' "${container}")" = node
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:3000/api/health |
+              jq -e '.status == "ok" and .mode == "database"' >/dev/null; then
+              home="$(curl --fail --silent http://127.0.0.1:3000/)"
+              printf '%s' "${home}" | grep -Fq 'booking'
+              if printf '%s' "${home}" | grep -Fq 'Four digits to enter.'; then
+                echo 'trusted proxy mode still rendered the PIN gate' >&2
+                exit 1
+              fi
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs "${container}"
+          exit 1
+
+  publish:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish immutable image
+        id: image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}
+          provenance: true
+          sbom: true
+
+      - name: Verify published architectures
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}@${{ steps.image.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect --raw "${IMAGE}" |
+            jq -e '[.manifests[].platform.architecture | select(. != "unknown")] | unique | sort == ["amd64", "arm64"]'
