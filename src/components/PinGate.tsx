@@ -2,12 +2,11 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { unlockPin } from "@/app/actions";
-import { siteName } from "@/lib/site";
 import { ThemeToggle } from "./ThemeToggle";
 
 const LENGTH = 4;
 
-export function PinGate() {
+export function PinGate({ siteName }: { siteName: string }) {
   const [digits, setDigits] = useState<string[]>(Array(LENGTH).fill(""));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();

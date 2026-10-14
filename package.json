@@ -20,7 +20,7 @@
     "drizzle-orm": "0.45.2",
     "lucide-react": "1.16.0",
     "mysql2": "3.24.2",
-    "next": "16.3.4",
+    "next": "16.3.8",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
@@ -35,7 +35,7 @@
     "dotenv": "17.4.2",
     "drizzle-kit": "0.31.10",
     "eslint": "9.39.4",
-    "eslint-config-next": "16.3.4",
+    "eslint-config-next": "16.3.8",
     "jsdom": "29.1.1",
     "tailwindcss": "4.3.0",
     "tsx": "4.22.1",
@@ -44,7 +44,7 @@
   },
   "overrides": {
     "@vercel/blob": {
-      "undici": "6.28.0"
+      "undici": "6.28.1"
     }
   }
 }
