@@ -3,13 +3,18 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import type { Person } from "@/lib/data";
 import { setIdentity } from "@/app/actions";
-import { siteName } from "@/lib/site";
 import { AddPersonForm } from "./AddPersonForm";
 import { ThemeToggle } from "./ThemeToggle";
 
 const ADD_PERSON_PANEL_ANIMATION_MS = 420;
 
-export function IdentityOnboarding({ people }: { people: Person[] }) {
+export function IdentityOnboarding({
+  people,
+  siteName,
+}: {
+  people: Person[];
+  siteName: string;
+}) {
   const [isPending, startTransition] = useTransition();
   const [pickingId, setPickingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);

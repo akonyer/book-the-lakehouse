@@ -56,8 +56,7 @@ export function CalendarShell({
   today,
   paymentConfig,
   showMaryMode,
-  footerLinkText,
-  footerSuffix,
+  footerText,
   siteRepoUrl,
 }: {
   initialYear: number;
@@ -69,8 +68,7 @@ export function CalendarShell({
   today: string;
   paymentConfig: PaymentConfig | null;
   showMaryMode: boolean;
-  footerLinkText: string;
-  footerSuffix: string;
+  footerText: string;
   siteRepoUrl: string;
 }) {
   const router = useRouter();
@@ -292,9 +290,8 @@ export function CalendarShell({
             rel="noreferrer"
             className="transition-colors hover:text-ink"
           >
-            {footerLinkText}
+            {footerText}
           </Link>
-          {footerSuffix ? <span className="ml-1">{footerSuffix}</span> : null}
         </footer>
       </div>
     </main>

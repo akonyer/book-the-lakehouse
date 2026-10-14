@@ -4,7 +4,7 @@ import { isGatePassed } from "@/lib/gate";
 import { IdentityOnboarding } from "@/components/IdentityOnboarding";
 import { PinGate } from "@/components/PinGate";
 import { CalendarShell } from "@/components/CalendarShell";
-import { siteFooterText, siteRepoUrl } from "@/lib/site";
+import { siteFooterText, siteName, siteRepoUrl } from "@/lib/site";
 import { getPaymentConfig } from "@/lib/payment";
 import { isMaryId } from "@/lib/mary";
 
@@ -27,20 +27,16 @@ export default async function Home({
   const [year, month] = parseMonthParam(m);
 
   if (!(await isGatePassed())) {
-    return <PinGate />;
+    return <PinGate siteName={siteName} />;
   }
 
   const { people, bookings, today } = await fetchCalendarYearData(year);
   const identityId = await getCurrentIdentityId();
   const me = identityId ? people.find((p) => p.id === identityId) : undefined;
   const paymentConfig = getPaymentConfig();
-  const footerLinkText = "Book the lakehouse";
-  const footerSuffix = siteFooterText.startsWith(footerLinkText)
-    ? siteFooterText.slice(footerLinkText.length).trimStart()
-    : "";
 
   if (!me) {
-    return <IdentityOnboarding people={people} />;
+    return <IdentityOnboarding people={people} siteName={siteName} />;
   }
 
   return (
@@ -55,8 +51,7 @@ export default async function Home({
       today={today}
       paymentConfig={paymentConfig}
       showMaryMode={isMaryId(me.id)}
-      footerLinkText={footerLinkText}
-      footerSuffix={footerSuffix}
+      footerText={siteFooterText}
       siteRepoUrl={siteRepoUrl}
     />
   );
